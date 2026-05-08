@@ -1,0 +1,66 @@
+# --- Data ---
+data:
+  embeddings_path: "data/embeddings.npz"   # path to .npy or .npz
+  metadata_csv: "data/metadata.csv"
+  embedding_dim: 768                        # must match actual embedding size
+  num_workers: 0
+  pin_memory: true
+
+# --- Model ---
+model:
+  hidden_dims: [512, 256, 128]             # list of hidden layer widths
+  dropout: 0.3
+  activation: "relu"                        # "relu" | "gelu" | "leaky_relu"
+  use_batch_norm: true
+
+# --- Training ---
+training:
+  batch_size: 256
+  max_epochs: 100
+  learning_rate: 1.0e-3
+  weight_decay: 1.0e-4
+  optimizer: "adam"                         # "adam" | "adamw"
+  scheduler:
+    type: "cosine"                          # "cosine" | "step" | "plateau" | "none"
+    warmup_epochs: 3
+    T_max: 50                               # for cosine
+    step_size: 20                           # for step
+    gamma: 0.5                              # for step / plateau
+    patience: 5                             # for plateau
+  early_stopping:
+    enabled: true
+    patience: 10
+    metric: "val_auc"                       # "val_loss" | "val_auc" | "val_f1"
+    min_delta: 1.0e-4
+    mode: "max"                             # "max" for auc/f1, "min" for loss
+  pos_weight: 1.0000                        # n_synthetic / n_real = 154931 / 154929
+
+# --- Checkpointing ---
+checkpointing:
+  output_dir: "outputs/runs"
+  save_best_only: true
+  checkpoint_metric: "val_auc"
+
+# --- Evaluation ---
+evaluation:
+  threshold: 0.5                            # probability cutoff for binary decision
+  per_dataset_report: true
+
+# --- Inference ---
+inference:
+  checkpoint_path: ""                       # set at CLI or override here
+  embeddings_path: null                     # override at CLI
+  metadata_csv: null                        # override at CLI
+  output_csv: "outputs/inference_scores.csv"
+  batch_size: 512
+
+# --- Comparison ---
+comparison:
+  scores_dir: "outputs/scores"             # directory of per-dataset inference CSVs
+  output_dir: "outputs/comparison"
+  plot_format: "png"                        # "png" | "pdf"
+  top_k: null                              # show only top-k datasets in ranking plot
+
+# --- Reproducibility ---
+seed: 42
+device: "auto"                             # "auto" | "cpu" | "cuda" | "mps"

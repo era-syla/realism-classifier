@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Data and outputs (not committed — too large)
+data/*.npy
+data/*.npz
+data/*.csv
+outputs/runs/
+outputs/scores/
+outputs/comparison/
+outputs/evaluation/
+
+# Keep placeholder files
+!data/.gitkeep
+!outputs/.gitkeep
+
+# Keep run_03 checkpoint
+!outputs/runs/
+!outputs/runs/run_03/
+!outputs/runs/run_03/best_model.pt
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
