@@ -1,68 +1,57 @@
-"""CLI entry point for evaluation on a labeled split."""
+"""
+Evaluate a trained realism classifier on the labelled test set.
+
+Generates 9 diagnostic plots and summary CSVs:
+  01_roc_pr.png               ROC and Precision-Recall curves
+  02_score_dist_global.png    Score distribution (real vs synthetic)
+  03_per_dataset_violin.png   Per-dataset score violin plot
+  04_confusion_matrix.png     Confusion matrix (row-normalised %)
+  05_per_dataset_accuracy.png Per-dataset accuracy bar chart
+  06_dataset_composition.png  Test set composition pie charts
+  07_score_cdf.png            Cumulative score distribution
+  08_summary_metrics.png      Global metrics table
+  09_dataset_breakdown.png    Per-dataset breakdown table
+  dataset_breakdown.csv
+  global_metrics.csv
+
+Usage:
+    python scripts/evaluate.py \
+        --config     configs/default.yaml \
+        --checkpoint outputs/runs/run_03/best_model.pt \
+        --output-dir outputs/test_analysis/run_03
+"""
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
+# reuse the full test_analysis implementation
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from realism_classifier.config import load_config, merge_cli_overrides, parse_overrides
-from realism_classifier.evaluate import evaluate
+# import everything from test_analysis
+import importlib.util, os
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Evaluate a trained realism classifier.")
-    parser.add_argument(
-        "--config", required=True, metavar="PATH",
-        help="Path to YAML config file"
-    )
-    parser.add_argument(
-        "--checkpoint", default=None, metavar="PATH",
-        help="Path to model checkpoint (.pt); overrides config.inference.checkpoint_path"
-    )
-    parser.add_argument(
-        "--split", default="test", choices=["train", "val", "test"],
-        help="Which split to evaluate (default: test)"
-    )
-    parser.add_argument(
-        "--output-dir", default=None, metavar="PATH",
-        help="Directory to write evaluation results and plots"
-    )
-    parser.add_argument(
-        "--threshold", type=float, default=None,
-        help="Probability threshold for binary decision (default: from config)"
-    )
-    parser.add_argument(
-        "--override", action="append", default=[], metavar="KEY=VALUE",
-        help="Dot-notation config override (repeatable)"
-    )
-    return parser.parse_args()
+_ta_path = Path(__file__).resolve().parent / "test_analysis.py"
+_spec    = importlib.util.spec_from_file_location("test_analysis", _ta_path)
+_ta      = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_ta)
 
 
 def main():
-    args = parse_args()
-    config = load_config(args.config)
+    parser = argparse.ArgumentParser(description="Full test-set evaluation with plots.")
+    parser.add_argument("--config",     required=True,  help="Path to YAML config")
+    parser.add_argument("--checkpoint", required=True,  help="Path to .pt checkpoint")
+    parser.add_argument("--output-dir", default="outputs/test_analysis")
+    args = parser.parse_args()
 
-    if args.override:
-        config = merge_cli_overrides(config, parse_overrides(args.override))
-    if args.threshold is not None:
-        config.evaluation.threshold = args.threshold
-
-    results = evaluate(
-        config,
-        checkpoint_path=args.checkpoint,
-        split=args.split,
-        output_dir=args.output_dir,
-    )
-
-    print("\n=== Global Metrics ===")
-    for k, v in results["global_metrics"].items():
-        print(f"  {k}: {v:.4f}" if isinstance(v, float) else f"  {k}: {v}")
-
-    if not results["per_dataset_metrics"].empty:
-        print("\n=== Per-Dataset Metrics ===")
-        print(results["per_dataset_metrics"].to_string())
+    # delegate to test_analysis.main() with the same args format
+    sys.argv = [
+        "evaluate.py",
+        "--config",     args.config,
+        "--checkpoint", args.checkpoint,
+        "--output-dir", args.output_dir,
+    ]
+    _ta.main()
 
 
 if __name__ == "__main__":

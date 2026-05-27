@@ -23,43 +23,38 @@ Requires Python ≥ 3.10 and PyTorch ≥ 2.1.
 
 ---
 
-## Quickstart — score a pkl file
+## Scripts
 
-The fastest way to run the classifier on a new dataset:
+### `scripts/infer.py` — score a dataset
+
+The main inference script. Accepts a `.pkl` file or `.npy`/`.npz` + metadata CSV.
 
 ```bash
-python scripts/run_inference.py \
-    --pkl       /path/to/embeddings.pkl \
+# from a pkl file (quickstart)
+python scripts/infer.py \
+    --input      /path/to/embeddings.pkl \
     --checkpoint outputs/runs/run_03/best_model.pt \
-    --output    outputs/my_dataset_scores.csv
+    --output     outputs/scores.csv
+
+# from npy/npz + metadata CSV
+python scripts/infer.py \
+    --input      data/embeddings.npz \
+    --metadata   data/metadata.csv \
+    --checkpoint outputs/runs/run_03/best_model.pt \
+    --output     outputs/scores.csv
 ```
 
-**Input pkl format** — must contain a dict with:
+**pkl format** — must be a dict with:
 ```python
 {
-    "embeddings": np.ndarray,  # shape (N, 768), float32, raw DINOv2-base CLS tokens
+    "embeddings": np.ndarray,  # shape (N, 768), float32
     "paths":      list[str],   # N file paths (optional)
 }
 ```
 
-**Output CSV** columns: `filename`, `path`, `realism_score`
+**Important:** embeddings must be **raw / unscaled** DINOv2-base CLS token outputs (768-dim). Do not normalise or scale before passing in. Trained on `facebook/dinov2-base` / `facebook/dinov3-vitb16-pretrain-lvd1689m`.
 
-**Important:** embeddings must be **raw / unscaled** DINOv2-base (ViT-B/14 or ViT-B/16) CLS token outputs — do not normalise or scale before passing in. The model was trained on `facebook/dinov2-base` / `facebook/dinov3-vitb16-pretrain-lvd1689m` embeddings (768-dim).
-
----
-
-## All scripts
-
-### `scripts/run_inference.py` — score a pkl file (recommended for inference)
-
-```bash
-python scripts/run_inference.py \
-    --pkl        /path/to/embeddings.pkl \
-    --checkpoint outputs/runs/run_03/best_model.pt \
-    --output     outputs/scores.csv \
-    --batch-size 512 \
-    --device     auto   # auto | cpu | cuda | mps
-```
+Output CSV columns: `filename`, `path`, `realism_score`
 
 ---
 
@@ -73,62 +68,52 @@ python scripts/train.py \
     --override model.dropout=0.2
 ```
 
-Best checkpoint → `outputs/runs/run_01/best_model.pt`  
-Per-epoch metrics → `outputs/runs/run_01/metrics.csv`
+Saves the best checkpoint to `outputs/runs/run_01/best_model.pt` and per-epoch metrics to `outputs/runs/run_01/metrics.csv`. Early stopping on `val_auc`.
 
 ---
 
-### `scripts/evaluate.py` — evaluate on labelled test split
+### `scripts/evaluate.py` — evaluate on labelled test set
+
+Runs the full test-set analysis and generates 9 diagnostic plots + summary CSVs.
 
 ```bash
 python scripts/evaluate.py \
-    --config     configs/default.yaml \
-    --checkpoint outputs/runs/run_01/best_model.pt \
-    --split      test \
-    --output-dir outputs/evaluation/run_01
-```
-
-Outputs: `evaluation_report.json`, `per_dataset_metrics.csv`, ROC curve, score distribution plots.
-
----
-
-### `scripts/infer.py` — score new datasets (npz/npy + metadata CSV)
-
-```bash
-python scripts/infer.py \
-    --config     configs/default.yaml \
-    --checkpoint outputs/runs/run_01/best_model.pt \
-    --embeddings data/dataset_A_embeddings.npy \
-    --metadata   data/dataset_A_meta.csv \
-    --output     outputs/scores/dataset_A.csv
-```
-
----
-
-### `scripts/compare_datasets.py` — compare realism across datasets
-
-```bash
-python scripts/compare_datasets.py \
-    --config     configs/default.yaml \
-    --scores-dir outputs/scores \
-    --output-dir outputs/comparison/run_01 \
-    --top-k 20
-```
-
-Outputs: `dataset_ranking.csv`, violin plot, bar chart, per-dataset histograms.
-
----
-
-### `scripts/test_analysis.py` — full test-set analysis (9 plots)
-
-```bash
-python scripts/test_analysis.py \
     --config     configs/default.yaml \
     --checkpoint outputs/runs/run_03/best_model.pt \
     --output-dir outputs/test_analysis/run_03
 ```
 
-Generates: ROC/PR curves, score distributions, per-dataset violin plot, confusion matrix, accuracy bars, composition pies, CDF, summary metrics table, dataset breakdown table.
+Outputs:
+
+| File | Description |
+|---|---|
+| `01_roc_pr.png` | ROC and Precision-Recall curves |
+| `02_score_dist_global.png` | Score distribution (real vs synthetic) |
+| `03_per_dataset_violin.png` | Per-dataset score violin plot |
+| `04_confusion_matrix.png` | Confusion matrix (row-normalised %) |
+| `05_per_dataset_accuracy.png` | Per-dataset accuracy bar chart |
+| `06_dataset_composition.png` | Test set composition pie charts |
+| `07_score_cdf.png` | Cumulative score distribution |
+| `08_summary_metrics.png` | Global metrics table |
+| `09_dataset_breakdown.png` | Per-dataset breakdown table |
+| `dataset_breakdown.csv` | Per-dataset metrics CSV |
+| `global_metrics.csv` | Global metrics CSV |
+
+---
+
+### `scripts/compare_datasets.py` — compare scores across datasets
+
+Compares realism score distributions across multiple scored CSVs.
+
+```bash
+python scripts/compare_datasets.py \
+    --config     configs/default.yaml \
+    --scores-dir outputs/scores \
+    --output-dir outputs/comparison/run_03 \
+    --top-k      20
+```
+
+Outputs: `dataset_ranking.csv`, violin plot, bar chart, per-dataset histograms.
 
 ---
 
@@ -152,8 +137,6 @@ Training data: ABC sketch+extrude, ABC all ops, DeepCAD, Fusion360 (real); CADRe
 
 ### Embeddings
 
-Place your embedding files under `data/`. Two formats are supported:
-
 | Format | Description |
 |--------|-------------|
 | `.npz` (preferred) | Keys `train`, `val`, `test` — each `(N, D)` float32 array |
@@ -167,8 +150,6 @@ Place your embedding files under `data/`. Two formats are supported:
 | `label` | yes | 1 = realistic, 0 = synthetic |
 | `split` | yes | `train` / `val` / `test` |
 | `dataset` | yes | source dataset name |
-| `object_id` | no | optional |
-| `view` | no | optional |
 
 ---
 
@@ -192,18 +173,17 @@ realism-classifier/
 ├── src/realism_classifier/
 │   ├── config.py                 # typed config dataclasses + YAML loading
 │   ├── dataset.py                # EmbeddingDataset + DataLoader factories
-│   ├── model.py                  # RealismMLP + checkpoint save/load
-│   ├── train.py                  # training loop, early stopping
+│   ├── model.py                  # RealismMLP + checkpoint utilities
+│   ├── train.py                  # training loop + early stopping
 │   ├── evaluate.py               # metrics, ROC, per-dataset reports
 │   ├── inference.py              # score new embedding files
 │   └── compare.py                # cross-dataset comparison + plots
 ├── scripts/
-│   ├── run_inference.py          # quickstart: score a pkl file
-│   ├── train.py
-│   ├── evaluate.py
-│   ├── infer.py
-│   ├── compare_datasets.py
-│   └── test_analysis.py
+│   ├── infer.py                  # score a dataset (pkl or npz/npy)
+│   ├── train.py                  # train a new model
+│   ├── evaluate.py               # full test-set evaluation + 9 plots
+│   ├── compare_datasets.py       # compare scores across datasets
+│   └── test_analysis.py          # underlying analysis implementation
 └── tests/
 ```
 
@@ -215,7 +195,7 @@ realism-classifier/
 - **Logits in `forward()`; sigmoid at inference** — `BCEWithLogitsLoss` during training for numerical stability; `predict_proba()` applies sigmoid to return [0, 1] scores.
 - **Self-describing checkpoints** — every `.pt` file stores the model architecture, so it can be reconstructed with no config file needed.
 - **Early stopping on `val_auc`** — optimises for ranking quality rather than calibrated loss, which matters most for score-based dataset comparison.
-- **`evaluate.py` and `compare.py` are separate** — `evaluate.py` requires ground-truth labels; `compare.py` works on any scored CSV.
+- **`evaluate.py` and `compare_datasets.py` are separate** — `evaluate.py` requires ground-truth labels; `compare_datasets.py` works on any scored CSV.
 
 ---
 
