@@ -117,6 +117,51 @@ Outputs: `dataset_ranking.csv`, violin plot, bar chart, per-dataset histograms.
 
 ---
 
+## Architecture
+
+The classifier is a **RealismMLP** — a feedforward neural network that takes a 768-dim DINO embedding and outputs a realism probability in [0, 1].
+
+```
+Input (768-dim DINO embedding)
+        │
+        ▼
+  Linear(768 → 512)
+  BatchNorm1d(512)
+  ReLU
+  Dropout(0.3)
+        │
+        ▼
+  Linear(512 → 256)
+  BatchNorm1d(256)
+  ReLU
+  Dropout(0.3)
+        │
+        ▼
+  Linear(256 → 128)
+  BatchNorm1d(128)
+  ReLU
+  Dropout(0.3)
+        │
+        ▼
+  Linear(128 → 1)
+        │
+        ▼
+  raw logit  ──[training]──►  BCEWithLogitsLoss
+                              (sigmoid applied internally)
+        │
+   [inference]
+        ▼
+  sigmoid → realism score ∈ [0, 1]
+```
+
+**Key points:**
+- `forward()` returns a raw logit — `BCEWithLogitsLoss` is used during training, which applies sigmoid internally for numerical stability
+- `predict_proba()` applies sigmoid explicitly to produce the final [0, 1] realism score
+- BatchNorm and Dropout(0.3) are applied after every hidden layer to regularise training
+- The checkpoint is self-describing — it stores the model architecture, so no config file is needed to load it at inference time
+
+---
+
 ## Pre-trained checkpoint (run_03)
 
 | Property | Value |
